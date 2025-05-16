@@ -1,4 +1,5 @@
 import torch 
+torch.manual_seed(42)
 
 
 class Linear:
@@ -38,8 +39,12 @@ class BatchNorm1d:
     
     def __call__(self, x):
         if self.training:
-            x_mean = x.mean(dim=0, keepdim=True)
-            x_var = x.var(dim=0, keepdim=True)
+            if x.ndim == 2:
+                dim = 0
+            elif x.ndim == 3:
+                dim = (0, 1)
+            x_mean = x.mean(dim=dim, keepdim=True)
+            x_var = x.var(dim=dim, keepdim=True)
             with torch.no_grad():
                 self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * x_mean
                 self.running_var = (1 - self.momentum) * self.running_var + self.momentum * x_var
@@ -67,3 +72,49 @@ class Tanh:
 
     def parameters(self):
         return []
+    
+
+class Embedding:
+
+    def __init__(self, num_embeddings, embedding_dim, device=None):
+        device = "cpu" if device is None else device
+        self.weight = torch.randn((num_embeddings, embedding_dim), device=device)
+
+    
+    def __call__(self, x):
+        self.out = self.weight[x]
+        
+        return self.out
+
+
+    def parameters(self):
+        return [self.weight]
+    
+
+class Flatten:
+
+    def __call__(self, x):
+        self.out = x.view(x.shape[0], -1)
+        
+        return self.out
+
+
+    def parameters(self):
+        return []
+    
+
+class Sequential:
+
+    def __init__(self, layers):
+        self.layers = layers
+    
+    
+    def __call__(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        self.out = x
+        return self.out
+    
+
+    def parameters(self):
+        return [p for layer in self.layers for p in layer.parameters()]
