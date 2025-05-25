@@ -39,7 +39,36 @@ class SelfAttentionHead(nn.Module):
         wei = self.dropout(wei)
 
         return wei @ self.values(idx)
+
+
+class FlashSelfAttention(nn.Module):
+
+    def __init__(self, cfg: TrfConfig):
+        super().__init__()
+        
+        assert cfg.emb_dim % cfg.n_heads == 0
+
+        self.attn = nn.Linear(cfg.emb_dim, 3 * cfg.emb_dim)  # self.attn(x) выполняет параллельное перемножение с входными данными
+                                                             # ключей, запросов и значений, тк они сразу в одном месте
+        self.proj = nn.Linear(cfg.emb_dim, cfg.emb_dim)
+
+        self.n_heads = cfg.n_heads
+        self.emb_dim = cfg.emb_dim
+
     
+    def forward(self, idx: torch.Tensor):
+        B, T, C = idx.size()
+        
+        qkv = self.attn(idx)
+        q, k, v = qkv.split(self.emb_dim, dim=2)
+        k = k.view(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
+        q = q.view(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
+        v = v.view(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
+        y = F.scaled_dot_product_attention(k, q, v, is_causal=True)  # Flash-attn
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
+
+        return self.proj(y)
+
 
 class MultiHeadAttention(nn.Module):
 
@@ -63,7 +92,7 @@ class FeedForward(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(cfg.emb_dim, 4 * cfg.emb_dim),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Linear(4 * cfg.emb_dim, cfg.emb_dim),  # Линейное преобразование
             nn.Dropout(cfg.dropout),
         )
