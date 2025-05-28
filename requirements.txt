@@ -1,0 +1,11 @@
+torch --index-url https://download.pytorch.org/whl/cu128
+torchvision --index-url https://download.pytorch.org/whl/cu128
+torchaudio --index-url https://download.pytorch.org/whl/cu128
+scikit-learn
+transformers==4.52.3
+huggingface-hub==0.32.2
+ipykernel
+matplotlib
+pandas
+openpyxl
+scipy
